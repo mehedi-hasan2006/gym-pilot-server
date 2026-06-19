@@ -11,6 +11,7 @@ dotenv.config();
 
 const uri = process.env.MONGODB_URI;
 const DBName = process.env.DB_NAME;
+
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -39,6 +40,11 @@ async function run() {
 
         const result = await classesCollection.insertOne(classData);
 
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+
         res.status(201).json({
           success: true,
           message: "class added successfully",
@@ -54,10 +60,13 @@ async function run() {
       }
     });
 
-    // get api for fetching all classes;
-    app.get("/api/classes", async (req, res) => {
+    // get api for fetching all classes by specific user;
+    app.get("/api/classes/:trainnerId", async (req, res) => {
       try {
-        const classes = await classesCollection.find().toArray();
+        const { trainnerId } = req.params;
+        const classes = await classesCollection
+          .find({ trainnerId: trainnerId })
+          .toArray();
         res.status(200).json(classes);
       } catch (e) {
         console.error("Error fetching classes data", e);
@@ -67,7 +76,38 @@ async function run() {
       }
     });
 
-    // fetch product by id
+    // api for update class data by user
+    app.patch("/api/classes/:classId", async (req, res) => {
+      const { classId } = req.params;
+      const filter = {
+        _id: new ObjectId(classId),
+      };
+      const modifiedClass = req.body;
+      const updatedData = {
+        $set: {
+          className: modifiedClass.className,
+          category: modifiedClass.category,
+          difficultyLevel: modifiedClass.difficultyLevel,
+          duration: modifiedClass.duration,
+          price: modifiedClass.price,
+          description: modifiedClass.description,
+        },
+      };
+      const result = await classesCollection.updateOne(filter, updatedData);
+
+      res.send(result);
+    });
+
+    // delete class from trainner
+    app.delete("/api/classes/:classId", async (req, res) => {
+      const { classId } = req.params;
+      const result = await classesCollection.deleteOne({
+        _id: new ObjectId(classId),
+      });
+      res.json(result);
+    });
+
+    // fetch class by id
     app.get("/api/classes/:classId", async (req, res) => {
       try {
         const { classId } = req.params;
