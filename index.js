@@ -60,55 +60,37 @@ async function run() {
       }
     });
 
-    // get api for fetching all classes by specific user;
-    app.get("/api/classes/:trainnerId", async (req, res) => {
+    // fetch api for admin to get all the classes for update status
+    app.get("/api/classes", async (req, res) => {
+      const classes = await classesCollection.find().toArray();
+      res.send(classes);
+    });
+
+    // fetch approved classes
+    app.get("/api/approved-classes", async (req, res) => {
       try {
-        const { trainnerId } = req.params;
-        const classes = await classesCollection
-          .find({ trainnerId: trainnerId })
-          .toArray();
-        res.status(200).json(classes);
-      } catch (e) {
-        console.error("Error fetching classes data", e);
+        const { status } = req.query;
+
+        const filter = {};
+
+        if (status) {
+          filter.status = status;
+        }
+
+        const result = await classesCollection.find(filter).toArray();
+
+        res.status(200).json(result);
+      } catch (error) {
+        console.error("Error fetching classes:", error);
         res.status(500).json({
-          message: "Failed to fetch classes. Please try again later.",
+          success: false,
+          message: "Failed to fetch classes",
         });
       }
     });
 
-    // api for update class data by user
-    app.patch("/api/classes/:classId", async (req, res) => {
-      const { classId } = req.params;
-      const filter = {
-        _id: new ObjectId(classId),
-      };
-      const modifiedClass = req.body;
-      const updatedData = {
-        $set: {
-          className: modifiedClass.className,
-          category: modifiedClass.category,
-          difficultyLevel: modifiedClass.difficultyLevel,
-          duration: modifiedClass.duration,
-          price: modifiedClass.price,
-          description: modifiedClass.description,
-        },
-      };
-      const result = await classesCollection.updateOne(filter, updatedData);
-
-      res.send(result);
-    });
-
-    // delete class from trainner
-    app.delete("/api/classes/:classId", async (req, res) => {
-      const { classId } = req.params;
-      const result = await classesCollection.deleteOne({
-        _id: new ObjectId(classId),
-      });
-      res.json(result);
-    });
-
-    // fetch class by id
-    app.get("/api/classes/:classId", async (req, res) => {
+    // fetch approved class by id || details
+    app.get("/api/approved-class/:classId", async (req, res) => {
       try {
         const { classId } = req.params;
 
@@ -129,10 +111,7 @@ async function run() {
           });
         }
 
-        res.status(200).json({
-          success: true,
-          data: result,
-        });
+        res.status(200).json(result);
       } catch (error) {
         console.error("Error fetching class:", error);
 
@@ -144,12 +123,53 @@ async function run() {
       }
     });
 
-    // app.patch("/api/producst", async (req, res) => {
-    //   try {
-    //   } catch (e) {
-    //     console.error("Failed to update this product", e);
-    //   }
-    // });
+    // get api for fetching all classes by specific user;
+    app.get("/api/classes/:trainnerId", async (req, res) => {
+      try {
+        const { trainnerId } = req.params;
+        const classes = await classesCollection
+          .find({ trainnerId: trainnerId })
+          .toArray();
+        res.status(200).json(classes);
+      } catch (e) {
+        console.error("Error fetching classes data", e);
+        res.status(500).json({
+          message: "Failed to fetch classes. Please try again later.",
+        });
+      }
+    });
+
+    // api for update class data by user || admin
+    app.patch("/api/classes/:classId", async (req, res) => {
+      const { classId } = req.params;
+      const filter = {
+        _id: new ObjectId(classId),
+      };
+      const modifiedClass = req.body;
+      const updatedData = {
+        $set: {
+          className: modifiedClass.className,
+          category: modifiedClass.category,
+          difficultyLevel: modifiedClass.difficultyLevel,
+          duration: modifiedClass.duration,
+          price: modifiedClass.price,
+          description: modifiedClass.description,
+          status: modifiedClass.status,
+        },
+      };
+      const result = await classesCollection.updateOne(filter, updatedData);
+
+      res.send(result);
+    });
+
+    // delete class from trainner
+    app.delete("/api/classes/:classId", async (req, res) => {
+      const { classId } = req.params;
+      const result = await classesCollection.deleteOne({
+        _id: new ObjectId(classId),
+      });
+      res.json(result);
+    });
 
     // get users data
     app.get("/api/users", async (req, res) => {
