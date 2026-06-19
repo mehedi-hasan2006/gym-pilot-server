@@ -30,6 +30,7 @@ async function run() {
     const classesCollection = db.collection("classes");
     const usersCollection = db.collection("user");
     const bookingsCollection = db.collection("bookings");
+    const postsCollection = db.collection("posts");
 
     // post api for adding new class;
     app.post("/api/classes", async (req, res) => {
@@ -172,7 +173,7 @@ async function run() {
       res.json(result);
     });
 
-    // post bookings
+    //  bookings
     app.patch("/api/bookings/:classId", async (req, res) => {
       const { classId } = req.params;
       const bookings = req.body;
@@ -201,6 +202,33 @@ async function run() {
       });
 
       res.send(result);
+    });
+
+    // forum post
+    app.post("/api/post", async (req, res) => {
+      try {
+        const postData = {
+          ...req.body,
+          createdAt: new Date(),
+        };
+
+        const result = await classesCollection.insertOne(postData);
+
+        res.status(200).json(result);
+
+        res.status(201).json({
+          success: true,
+          message: "post added successfully",
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Error adding post:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Internal Server Error",
+        });
+      }
     });
 
     // get users data
