@@ -29,6 +29,7 @@ async function run() {
     const db = client.db(DBName);
     const classesCollection = db.collection("classes");
     const usersCollection = db.collection("user");
+    const bookingsCollection = db.collection("bookings");
 
     // post api for adding new class;
     app.post("/api/classes", async (req, res) => {
@@ -169,6 +170,37 @@ async function run() {
         _id: new ObjectId(classId),
       });
       res.json(result);
+    });
+
+    // post bookings
+    app.patch("/api/bookings/:classId", async (req, res) => {
+      const { classId } = req.params;
+      const bookings = req.body;
+
+      const classes = await classesCollection.findOne({
+        _id: new ObjectId(classId),
+      });
+
+      if (!classes) {
+        res.status(404).json({ message: "Class not Found!" });
+      }
+
+      await classesCollection.updateOne(
+        { _id: new ObjectId(classId) },
+        {
+          $inc: { bookingCount: 1 },
+          $set: {
+            lastBookingAt: new Date(),
+          },
+        },
+      );
+
+      const result = await bookingsCollection.insertOne({
+        ...bookings,
+        bookingAt: new Date(),
+      });
+
+      res.send(result);
     });
 
     // get users data
