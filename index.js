@@ -246,10 +246,34 @@ async function run() {
     });
 
     // post details api
-    app.get('/api/posts/:postId', async (req, res)=>{
-      const {postId} = req.params;
-      const 
-    })
+    app.get("/api/posts/:postId", async (req, res) => {
+      try {
+        const { postId } = req.params;
+
+        if (!ObjectId.isValid(postId)) {
+          return res.status(400).send({
+            message: "Invalid post ID",
+          });
+        }
+
+        const result = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        if (!result) {
+          return res.status(404).send({
+            message: "Post not found",
+          });
+        }
+
+        res.status(200).send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({
+          message: "Failed to fetch post",
+        });
+      }
+    });
 
     // get users data
     app.get("/api/users", async (req, res) => {
