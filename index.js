@@ -204,7 +204,7 @@ async function run() {
       res.send(result);
     });
 
-    // forum post
+    // add forum post
     app.post("/api/post", async (req, res) => {
       try {
         const postData = {
@@ -212,9 +212,9 @@ async function run() {
           createdAt: new Date(),
         };
 
-        const result = await classesCollection.insertOne(postData);
+        const result = await postsCollection.insertOne(postData);
 
-        res.status(200).json(result);
+        // res.status(200).json(result);
 
         res.status(201).json({
           success: true,
@@ -230,6 +230,26 @@ async function run() {
         });
       }
     });
+
+    // get forum post
+    app.get("/api/posts", async (req, res) => {
+      try {
+        const result = await postsCollection.find().toArray();
+        res.status(200).json(result);
+      } catch (e) {
+        console.error("Can't fetch posts", e);
+        res.status(500).json({
+          success: false,
+          message: "Fetching Failed!",
+        });
+      }
+    });
+
+    // post details api
+    app.get('/api/posts/:postId', async (req, res)=>{
+      const {postId} = req.params;
+      const 
+    })
 
     // get users data
     app.get("/api/users", async (req, res) => {
