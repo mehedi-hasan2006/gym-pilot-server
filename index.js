@@ -245,8 +245,209 @@ async function run() {
       }
     });
 
+    // like api
+    app.post("/api/posts/:postId/like", async (req, res) => {
+      try {
+        const { postId } = req.params;
+        const { userId } = req.body;
+
+        const post = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+       
+
+        if (!post) {
+          return res.status(404).json({
+            message: "Post not found",
+          });
+        }
+
+        let likes = post.likes || [];
+        let dislikes = post.dislikes || [];
+
+        const alreadyLiked = likes.includes(userId);
+
+        if (alreadyLiked) {
+          likes = likes.filter((id) => id !== userId);
+        } else {
+          likes.push(userId);
+          dislikes = dislikes.filter((id) => id !== userId);
+        }
+
+        await postsCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          {
+            $set: {
+              likes,
+              dislikes,
+            },
+          },
+        );
+
+        const updatedPost = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        res.send(updatedPost);
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to like post",
+        });
+      }
+    });
+
+    // dislike api
+    app.post("/api/posts/:postId/dislike", async (req, res) => {
+      try {
+        const { postId } = req.params;
+        const { userId } = req.body;
+
+        const post = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        let likes = post.likes || [];
+        let dislikes = post.dislikes || [];
+
+        const alreadyDisliked = dislikes.includes(userId);
+
+        if (alreadyDisliked) {
+          dislikes = dislikes.filter((id) => id !== userId);
+        } else {
+          dislikes.push(userId);
+          likes = likes.filter((id) => id !== userId);
+        }
+
+        await postsCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          {
+            $set: {
+              likes,
+              dislikes,
+            },
+          },
+        );
+
+        const updatedPost = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        res.send(updatedPost);
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to dislike post",
+        });
+      }
+    });
+
+    //comment api
+
+    app.post("/api/posts/:postId/comments", async (req, res) => {
+      try {
+        const { postId } = req.params;
+
+        const { userId, userName, text, parentCommentId = null } = req.body;
+
+        const comment = {
+          _id: new ObjectId().toString(),
+          userId,
+          userName,
+          text,
+          parentCommentId,
+          createdAt: new Date(),
+        };
+
+        await postsCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          {
+            $push: {
+              comments: comment,
+            },
+          },
+        );
+
+        const updatedPost = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        res.send(updatedPost.comments);
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to add comment",
+        });
+      }
+    });
+
+    // edit comment
+    app.put("/api/posts/:postId/comments/:commentId", async (req, res) => {
+      try {
+        const { postId, commentId } = req.params;
+        const { text, userId } = req.body;
+
+        const post = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        const comments = post.comments.map((comment) => {
+          if (comment._id === commentId && comment.userId === userId) {
+            return {
+              ...comment,
+              text,
+              updatedAt: new Date(),
+            };
+          }
+          return comment;
+        });
+
+        await postsCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          {
+            $set: { comments },
+          },
+        );
+
+        res.send(comments);
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to update comment",
+        });
+      }
+    });
+
+    // delet comment api
+    app.delete("/api/posts/:postId/comments/:commentId", async (req, res) => {
+      try {
+        const { postId, commentId } = req.params;
+        const { userId } = req.body;
+
+        const post = await postsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+
+        const comments = post.comments.filter(
+          (comment) =>
+            !(comment._id === commentId && comment.userId === userId),
+        );
+
+        await postsCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          {
+            $set: {
+              comments,
+            },
+          },
+        );
+
+        res.send(comments);
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to delete comment",
+        });
+      }
+    });
+
     // post details api
-    app.get("/api/posts/:postId", async (req, res) => {
+    app.get("/api/post/:postId", async (req, res) => {
       try {
         const { postId } = req.params;
 
