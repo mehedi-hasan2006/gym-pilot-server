@@ -245,6 +245,22 @@ async function run() {
       }
     });
 
+    // get api for fetching all classes by specific user;
+    app.get("/api/posts/:authorId", async (req, res) => {
+      try {
+        const { authorId } = req.params;
+        const posts = await postsCollection
+          .find({ authorId: authorId })
+          .toArray();
+        res.status(200).json(posts);
+      } catch (e) {
+        console.error("Error fetching Posts data", e);
+        res.status(500).json({
+          message: "Failed to fetch Posts. Please try again later.",
+        });
+      }
+    });
+
     // like api
     app.post("/api/posts/:postId/like", async (req, res) => {
       try {
@@ -254,7 +270,6 @@ async function run() {
         const post = await postsCollection.findOne({
           _id: new ObjectId(postId),
         });
-       
 
         if (!post) {
           return res.status(404).json({
