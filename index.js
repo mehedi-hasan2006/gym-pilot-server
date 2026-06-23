@@ -86,6 +86,46 @@ async function run() {
       }
     });
 
+    app.get("/api/applications", async (req, res) => {
+      try {
+        const result = await applicationsCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.status(200).json(result);
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch applications",
+        });
+      }
+    });
+
+    app.get("/api/application/:userId", async (req, res) => {
+      try {
+        const { userId } = req.params;
+
+        const application = await applicationsCollection.findOne({
+          userId,
+        });
+
+        if (!application) {
+          return res.status(404).json({
+            success: false,
+            message: "Application not found",
+          });
+        }
+
+        res.status(200).json(application);
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch application",
+        });
+      }
+    });
+
     // post api for adding new class;
     app.post("/api/classes", async (req, res) => {
       try {
