@@ -31,6 +31,60 @@ async function run() {
     const usersCollection = db.collection("user");
     const bookingsCollection = db.collection("bookings");
     const postsCollection = db.collection("posts");
+    const applicationsCollection = db.collection("applications");
+
+    // applications
+
+    app.post("/api/applications", async (req, res) => {
+      try {
+        const { userId, name, email, experience, specialty, bio } = req.body;
+
+        if (!userId || !name || !email || !experience || !specialty?.length) {
+          return res.status(400).json({
+            success: false,
+            message: "All required fields must be provided",
+          });
+        }
+
+        // Check if already applied
+        const existingApplication = await applicationsCollection.findOne({
+          userId,
+        });
+
+        if (existingApplication) {
+          return res.status(409).json({
+            success: false,
+            message: "You have already submitted an application",
+          });
+        }
+
+        const application = {
+          userId,
+          name,
+          email,
+          experience: Number(experience),
+          specialty,
+          bio: bio || "",
+          status: "Pending",
+          createdAt: new Date(),
+        };
+
+        const result = await applicationsCollection.insertOne(application);
+
+        res.status(201).json({
+          success: true,
+          message: "Application submitted successfully",
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Trainer Application Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to submit application",
+        });
+      }
+    });
 
     // post api for adding new class;
     app.post("/api/classes", async (req, res) => {
