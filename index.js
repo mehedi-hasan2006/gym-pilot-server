@@ -33,20 +33,28 @@ async function run() {
     const postsCollection = db.collection("posts");
     const applicationsCollection = db.collection("applications");
 
-    // applications
-
+    // create  applications
     app.post("/api/applications", async (req, res) => {
       try {
-        const { userId, name, email, experience, specialty, bio } = req.body;
+        const {
+          userId,
+          name,
+          email,
+          experience,
+          specialty,
+          certification,
+          bio,
+          availability,
+        } = req.body;
 
-        if (!userId || !name || !email || !experience || !specialty?.length) {
+        if (!userId) {
           return res.status(400).json({
             success: false,
-            message: "All required fields must be provided",
+            message: "User ID is required",
           });
         }
 
-        // Check if already applied
+        // Check existing application
         const existingApplication = await applicationsCollection.findOne({
           userId,
         });
@@ -58,18 +66,20 @@ async function run() {
           });
         }
 
-        const application = {
+        const applicationData = {
           userId,
           name,
           email,
-          experience: Number(experience),
+          experience,
           specialty,
-          bio: bio || "",
+          certification,
+          bio,
+          availability,
           status: "Pending",
           createdAt: new Date(),
         };
 
-        const result = await applicationsCollection.insertOne(application);
+        const result = await applicationsCollection.insertOne(applicationData);
 
         res.status(201).json({
           success: true,
@@ -79,6 +89,13 @@ async function run() {
       } catch (error) {
         console.error("Trainer Application Error:", error);
 
+        if (error.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: "You have already submitted an application",
+          });
+        }
+
         res.status(500).json({
           success: false,
           message: "Failed to submit application",
@@ -86,6 +103,7 @@ async function run() {
       }
     });
 
+    // get all applications by admin
     app.get("/api/applications", async (req, res) => {
       try {
         const result = await applicationsCollection
@@ -102,26 +120,127 @@ async function run() {
       }
     });
 
+    // get application by specific user
     app.get("/api/application/:userId", async (req, res) => {
-      try {
-        const { userId } = req.params;
+      const { userId } = req.params;
 
-        const application = await applicationsCollection.findOne({
-          userId,
+      const application = await applicationsCollection.findOne({ userId });
+
+      if (!application) {
+        return res.status(404).json({
+          success: false,
+          message: "Application not found",
         });
+      }
 
-        if (!application) {
+      res.status(200).json({
+        success: true,
+        data: application,
+      });
+    });
+
+    // Approve Application API
+    app.patch("/api/applications/approve/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await applicationsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: "Approved",
+              reviewedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
           return res.status(404).json({
             success: false,
             message: "Application not found",
           });
         }
 
-        res.status(200).json(application);
+        res.status(200).json({
+          success: true,
+          message: "Application approved successfully",
+        });
       } catch (error) {
+        console.error("Approve Application Error:", error);
+
         res.status(500).json({
           success: false,
-          message: "Failed to fetch application",
+          message: "Failed to approve application",
+        });
+      }
+    });
+
+    //Reject Application API
+    app.patch("/api/applications/reject/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const { rejectionCategory, rejectionReason } = req.body;
+
+        const result = await applicationsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: "Rejected",
+              rejectionCategory,
+              rejectionReason,
+              reviewedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "Application not found",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "Application rejected successfully",
+        });
+      } catch (error) {
+        console.error("Reject Application Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to reject application",
+        });
+      }
+    });
+
+    //Delete Application API
+    app.delete("/api/applications/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await applicationsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "Application not found",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "Application deleted successfully",
+        });
+      } catch (error) {
+        console.error("Delete Application Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to delete application",
         });
       }
     });
