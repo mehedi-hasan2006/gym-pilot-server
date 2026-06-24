@@ -139,18 +139,20 @@ async function run() {
       });
     });
 
-    // Approve Application API
-    app.patch("/api/applications/approve/:id", async (req, res) => {
+    // Approve & Reject Application API
+    app.patch("/api/applications/:id", async (req, res) => {
       try {
         const { id } = req.params;
+
+        const updateData = {
+          ...req.body,
+          reviewedAt: new Date(),
+        };
 
         const result = await applicationsCollection.updateOne(
           { _id: new ObjectId(id) },
           {
-            $set: {
-              status: "Approved",
-              reviewedAt: new Date(),
-            },
+            $set: updateData,
           },
         );
 
@@ -163,54 +165,54 @@ async function run() {
 
         res.status(200).json({
           success: true,
-          message: "Application approved successfully",
+          message: "Application updated successfully",
         });
       } catch (error) {
-        console.error("Approve Application Error:", error);
+        console.error("Update Application Error:", error);
 
         res.status(500).json({
           success: false,
-          message: "Failed to approve application",
+          message: "Failed to update application",
         });
       }
     });
 
-    //Reject Application API
-    app.patch("/api/applications/reject/:id", async (req, res) => {
+    // applications stats
+    app.get("/api/applications/stats", async (req, res) => {
       try {
-        const { id } = req.params;
+        const totalApplications = await applicationsCollection.countDocuments();
 
-        const { rejectionCategory, rejectionReason } = req.body;
+        const approvedApplications =
+          await applicationsCollection.countDocuments({
+            status: "Approved",
+          });
 
-        const result = await applicationsCollection.updateOne(
-          { _id: new ObjectId(id) },
+        const rejectedApplications =
+          await applicationsCollection.countDocuments({
+            status: "Rejected",
+          });
+
+        const pendingApplications = await applicationsCollection.countDocuments(
           {
-            $set: {
-              status: "Rejected",
-              rejectionCategory,
-              rejectionReason,
-              reviewedAt: new Date(),
-            },
+            status: "Pending",
           },
         );
 
-        if (result.matchedCount === 0) {
-          return res.status(404).json({
-            success: false,
-            message: "Application not found",
-          });
-        }
-
         res.status(200).json({
           success: true,
-          message: "Application rejected successfully",
+          data: {
+            total: totalApplications,
+            approved: approvedApplications,
+            rejected: rejectedApplications,
+            pending: pendingApplications,
+          },
         });
       } catch (error) {
-        console.error("Reject Application Error:", error);
+        console.error("Application Stats Error:", error);
 
         res.status(500).json({
           success: false,
-          message: "Failed to reject application",
+          message: "Failed to fetch application stats",
         });
       }
     });
@@ -713,6 +715,179 @@ async function run() {
         console.error("Error Fetching Users Data", e);
         res.status(500).json({
           message: "Failed to Fetched users data. Please try again later",
+        });
+      }
+    });
+
+    //Update User Status
+    // example: Active / Inactive / Blocked
+    app.patch("/api/users/status/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "User status updated successfully",
+        });
+      } catch (error) {
+        console.error("Update User Status Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to update user status",
+        });
+      }
+    });
+
+    //Update User Role
+    // example: member → trainer → admin
+    app.patch("/api/users/role/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              role,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "User role updated successfully",
+        });
+      } catch (error) {
+        console.error("Update User Role Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to update user role",
+        });
+      }
+    });
+
+    // Delete user
+    app.delete("/api/users/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await usersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "User deleted successfully",
+        });
+      } catch (error) {
+        console.error("Delete User Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to delete user",
+        });
+      }
+    });
+
+    // Get User Stats
+    app.get("/api/users/stats", async (req, res) => {
+      try {
+        const stats = await usersCollection
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+
+                admins: {
+                  $sum: {
+                    $cond: [{ $eq: ["$role", "admin"] }, 1, 0],
+                  },
+                },
+
+                trainers: {
+                  $sum: {
+                    $cond: [{ $eq: ["$role", "trainer"] }, 1, 0],
+                  },
+                },
+
+                members: {
+                  $sum: {
+                    $cond: [{ $eq: ["$role", "member"] }, 1, 0],
+                  },
+                },
+
+                active: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "active"] }, 1, 0],
+                  },
+                },
+
+                inactive: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "inactive"] }, 1, 0],
+                  },
+                },
+              },
+            },
+          ])
+          .toArray();
+
+        const result = stats[0] || {
+          total: 0,
+          admins: 0,
+          trainers: 0,
+          members: 0,
+          active: 0,
+          inactive: 0,
+        };
+
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      } catch (error) {
+        console.error("User Stats Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch user statistics",
         });
       }
     });
