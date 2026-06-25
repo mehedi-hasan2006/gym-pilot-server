@@ -476,6 +476,103 @@ async function run() {
       }
     });
 
+    // Delete Forum Post
+    app.delete("/api/posts/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await postsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        res.status(200).json({
+          success: true,
+          message: "Post deleted successfully",
+          result,
+        });
+      } catch (e) {
+        console.error("Can't delete post", e);
+        res.status(500).json({
+          success: false,
+          message: "Delete Failed!",
+        });
+      }
+    });
+
+    //Get Forum Stats
+    app.get("/api/posts/stats", async (req, res) => {
+      try {
+        const posts = await postsCollection.find().toArray();
+
+        const totalPosts = posts.length;
+
+        const totalLikes = posts.reduce(
+          (sum, post) => sum + (post.likes?.length || 0),
+          0,
+        );
+
+        const totalComments = posts.reduce(
+          (sum, post) => sum + (post.comments?.length || 0),
+          0,
+        );
+
+        const reportedPosts = posts.filter(
+          (post) => post.reported === true,
+        ).length;
+
+        res.status(200).json({
+          success: true,
+          totalPosts,
+          totalLikes,
+          totalComments,
+          reportedPosts,
+        });
+      } catch (e) {
+        console.error("Can't fetch stats", e);
+        res.status(500).json({
+          success: false,
+          message: "Fetching Stats Failed!",
+        });
+      }
+    });
+
+    //Report Post
+    app.patch("/api/posts/report/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const reportData = req.body;
+
+        const result = await postsCollection.updateOne(
+          {
+            _id: new ObjectId(id),
+          },
+          {
+            $set: {
+              reported: true,
+            },
+            $push: {
+              reports: {
+                ...reportData,
+                reportedAt: new Date(),
+              },
+            },
+          },
+        );
+
+        res.status(200).json({
+          success: true,
+          message: "Post reported successfully",
+          result,
+        });
+      } catch (e) {
+        console.error("Can't report post", e);
+        res.status(500).json({
+          success: false,
+          message: "Report Failed!",
+        });
+      }
+    });
+
     // like api
     app.post("/api/posts/:postId/like", async (req, res) => {
       try {
@@ -841,9 +938,9 @@ async function run() {
                   },
                 },
 
-                trainers: {
+                trainners: {
                   $sum: {
-                    $cond: [{ $eq: ["$role", "trainer"] }, 1, 0],
+                    $cond: [{ $eq: ["$role", "trainner"] }, 1, 0],
                   },
                 },
 
@@ -855,13 +952,12 @@ async function run() {
 
                 active: {
                   $sum: {
-                    $cond: [{ $eq: ["$status", "active"] }, 1, 0],
+                    $cond: [{ $eq: ["$status", "Active"] }, 1, 0],
                   },
                 },
-
-                inactive: {
+                blocked: {
                   $sum: {
-                    $cond: [{ $eq: ["$status", "inactive"] }, 1, 0],
+                    $cond: [{ $eq: ["$status", "Blocked"] }, 1, 0],
                   },
                 },
               },
@@ -872,10 +968,10 @@ async function run() {
         const result = stats[0] || {
           total: 0,
           admins: 0,
-          trainers: 0,
+          trainners: 0,
           members: 0,
           active: 0,
-          inactive: 0,
+          blocked: 0,
         };
 
         res.status(200).json({
@@ -888,6 +984,163 @@ async function run() {
         res.status(500).json({
           success: false,
           message: "Failed to fetch user statistics",
+        });
+      }
+    });
+
+    //Get All Trainers
+    app.get("/api/trainners", async (req, res) => {
+      try {
+        const trainners = await usersCollection
+          .find({ role: "trainner" })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          data: trainners,
+        });
+      } catch (error) {
+        console.error("Get Trainers Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch trainers",
+        });
+      }
+    });
+
+    //Demote Trainer To User
+    app.patch("/api/trainners/demote/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              role: "member",
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "Trainer not found",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "Trainer demoted successfully",
+        });
+      } catch (error) {
+        console.error("Demote Trainer Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to demote trainer",
+        });
+      }
+    });
+
+    // Update Trainer Status======= Active / Inactive / Blocked
+    app.patch("/api/trainners/status/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const result = await usersCollection.updateOne(
+          {
+            _id: new ObjectId(id),
+            role: "trainner",
+          },
+          {
+            $set: {
+              status,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "Trainer not found",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "Trainer status updated successfully",
+        });
+      } catch (error) {
+        console.error("Update Trainer Status Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to update trainer status",
+        });
+      }
+    });
+
+    // Get Trainer Stats
+    app.get("/api/trainners/stats", async (req, res) => {
+      try {
+        const stats = await usersCollection
+          .aggregate([
+            {
+              $match: {
+                role: "trainner",
+              },
+            },
+            {
+              $group: {
+                _id: null,
+
+                total: { $sum: 1 },
+
+                active: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Active"] }, 1, 0],
+                  },
+                },
+
+                blocked: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Blocked"] }, 1, 0],
+                  },
+                },
+
+                inactive: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "Inactive"] }, 1, 0],
+                  },
+                },
+              },
+            },
+          ])
+          .toArray();
+
+        const result = stats[0] || {
+          total: 0,
+          active: 0,
+          blocked: 0,
+          inactive: 0,
+        };
+
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      } catch (error) {
+        console.error("Trainer Stats Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch trainer stats",
         });
       }
     });
