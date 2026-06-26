@@ -32,6 +32,7 @@ async function run() {
     const bookingsCollection = db.collection("bookings");
     const postsCollection = db.collection("posts");
     const applicationsCollection = db.collection("applications");
+    const favoritesCollection = db.collection("favorites");
 
     // create  applications
     app.post("/api/applications", async (req, res) => {
@@ -386,6 +387,101 @@ async function run() {
         _id: new ObjectId(classId),
       });
       res.json(result);
+    });
+
+    // Toggle Favorite API
+    app.patch("/api/favorites/:classId", async (req, res) => {
+      try {
+        const { classId } = req.params;
+        const { userId } = req.body;
+
+        const existingFavorite = await favoritesCollection.findOne({
+          userId,
+          classId,
+        });
+
+        if (existingFavorite) {
+          const deleteResult = await favoritesCollection.deleteOne({
+            _id: existingFavorite._id,
+          });
+
+          return res.json({
+            success: true,
+            isFavorite: false,
+          });
+        }
+
+        const insertResult = await favoritesCollection.insertOne({
+          userId,
+          classId,
+          createdAt: new Date(),
+        });
+
+        return res.json({
+          success: true,
+          isFavorite: true,
+        });
+      } catch (error) {
+        console.error("Favorite Error:", error);
+      }
+    });
+
+    //Get Favorite Classes
+    app.get("/api/favorites/:userId", async (req, res) => {
+      try {
+        const { userId } = req.params;
+
+        const favorites = await favoritesCollection.find({ userId }).toArray();
+
+        const classIds = favorites.map((favorite) => favorite.classId);
+
+        const objectIds = classIds.map((id) => new ObjectId(id));
+
+        const favoriteClasses = await classesCollection
+          .find({
+            _id: {
+              $in: objectIds,
+            },
+          })
+          .toArray();
+
+        console.log("favoriteClasses:", favoriteClasses);
+        const oneClass = await classesCollection.findOne();
+
+        res.status(200).json({
+          success: true,
+          data: favoriteClasses,
+        });
+      } catch (error) {
+        console.error("Get Favorites Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch favorites",
+        });
+      }
+    });
+
+    //Check Single Favorite
+    app.get("/api/favorites/check/:classId/:userId", async (req, res) => {
+      try {
+        const { classId, userId } = req.params;
+
+        const favorite = await favoritesCollection.findOne({
+          userId,
+          classId,
+        });
+
+        res.status(200).json({
+          success: true,
+          isFavorite: !!favorite,
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to check favorite",
+        });
+      }
     });
 
     //  bookings
