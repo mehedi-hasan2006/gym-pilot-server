@@ -33,6 +33,78 @@ async function run() {
     const postsCollection = db.collection("posts");
     const applicationsCollection = db.collection("applications");
     const favoritesCollection = db.collection("favorites");
+    const paymentsCollection = db.collection("payments");
+
+    app.post("/api/payments", async (req, res) => {
+      try {
+        const paymentData = {
+          ...req.body,
+          createdAt: new Date(),
+        };
+
+        const ixExits = await paymentsCollection.findOne({
+          sessionId: paymentData.sessionId,
+        });
+
+        if (ixExits) {
+          return res.status(409).json({
+            success: false,
+            message: "You have already paid for this session",
+          });
+        }
+
+        const result = await paymentsCollection.insertOne(paymentData);
+
+        res.status(201).json({
+          success: true,
+          message: "payment added successfully",
+          insertedId: result.insertedId,
+        });
+
+        // update booking status
+        const booking = await bookingsCollection.findOne({
+          classId: paymentData.classId,
+        });
+
+        if (booking) {
+          await bookingsCollection.updateOne(
+            { userId: booking.userId, classId: booking.classId },
+            {
+              $set: {
+                isBooked: true,
+                bookingAt: new Date(),
+              },
+            },
+          );
+        }
+
+        res.status(201).json({
+          success: true,
+          message: "payment added successfully",
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Error adding payment:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Internal Server Error",
+        });
+      }
+    });
+
+    app.get("/api/payments", async (req, res) => {
+      try {
+        const result = await paymentsCollection.find().toArray();
+        res.status(200).json(result);
+      } catch (e) {
+        console.error("Can't fetch payments", e);
+        res.status(500).json({
+          success: false,
+          message: "Fetching Failed!",
+        });
+      }
+    });
 
     // create  applications
     app.post("/api/applications", async (req, res) => {
@@ -513,6 +585,17 @@ async function run() {
       });
 
       res.send(result);
+    });
+
+    // get bookings
+    app.get("/api/bookings", async (req, res) => {
+      try {
+        const result = await bookingsCollection.find({}).toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send(error);
+      }
     });
 
     // add forum post
