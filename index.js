@@ -68,6 +68,85 @@ async function run() {
       }
     });
 
+    // get booking from user
+    app.get("/api/bookings/user/:userId", async (req, res) => {
+      try {
+        const { userId } = req.params;
+
+        const bookings = await bookingsCollection
+          .aggregate([
+            {
+              $match: {
+                userId,
+              },
+            },
+            {
+              $lookup: {
+                from: "classes",
+                let: {
+                  classId: "$classId",
+                },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $eq: [
+                          "$_id",
+                          {
+                            $toObjectId: "$$classId",
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+                as: "classInfo",
+              },
+            },
+            {
+              $unwind: "$classInfo",
+            },
+            {
+              $project: {
+                userId: 1,
+                classId: 1,
+                bookingAt: 1,
+                isBooked: 1,
+                paymentStatus: 1,
+
+                className: "$classInfo.className",
+                image: "$classInfo.image",
+                category: "$classInfo.category",
+                difficultyLevel: "$classInfo.difficultyLevel",
+                duration: "$classInfo.duration",
+                price: "$classInfo.price",
+                trainerName: "$classInfo.trainnerName",
+                schedules: "$classInfo.schedules",
+              },
+            },
+            {
+              $sort: {
+                bookingAt: -1,
+              },
+            },
+          ])
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          total: bookings.length,
+          data: bookings,
+        });
+      } catch (error) {
+        console.error("Get User Bookings Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch booking information",
+        });
+      }
+    });
+
     //  bookings
     app.patch("/api/bookings/:classId", async (req, res) => {
       try {
