@@ -35,56 +35,55 @@ async function run() {
     const favoritesCollection = db.collection("favorites");
     const paymentsCollection = db.collection("payments");
 
-    app.post("/api/payments", async (req, res) => {
-      try {
-        const paymentData = {
-          ...req.body,
-          createdAt: new Date(),
-        };
+    await bookingsCollection.createIndex(
+      { userId: 1, classId: 1 },
+      { unique: true },
+    );
 
-        const ixExits = await paymentsCollection.findOne({
-          sessionId: paymentData.sessionId,
+    //  bookings
+    app.patch("/api/bookings/:classId", async (req, res) => {
+      try {
+        const { classId } = req.params;
+        const bookingData = req.body;
+
+        // Check class exists
+        const existingClass = await classesCollection.findOne({
+          _id: new ObjectId(classId),
         });
 
-        if (ixExits) {
-          return res.status(409).json({
+        if (!existingClass) {
+          return res.status(404).json({
             success: false,
-            message: "You have already paid for this session",
+            message: "Class not found",
           });
         }
 
-        const result = await paymentsCollection.insertOne(paymentData);
-
-        res.status(201).json({
-          success: true,
-          message: "payment added successfully",
-          insertedId: result.insertedId,
+        // Check duplicate booking
+        const existingBooking = await bookingsCollection.findOne({
+          userId: bookingData.userId,
+          classId,
+          isBooked: true,
         });
 
-        // update booking status
-        const booking = await bookingsCollection.findOne({
-          classId: paymentData.classId,
-        });
-
-        if (booking) {
-          await bookingsCollection.updateOne(
-            { userId: booking.userId, classId: booking.classId },
-            {
-              $set: {
-                isBooked: true,
-                bookingAt: new Date(),
-              },
-            },
-          );
+        if (existingBooking) {
+          return res.status(409).json({
+            success: false,
+            message: "You have already booked this class.",
+          });
         }
 
         res.status(201).json({
           success: true,
-          message: "payment added successfully",
-          insertedId: result.insertedId,
         });
       } catch (error) {
-        console.error("Error adding payment:", error);
+        console.error(error);
+
+        if (error.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: "You have already booked this class.",
+          });
+        }
 
         res.status(500).json({
           success: false,
@@ -93,6 +92,110 @@ async function run() {
       }
     });
 
+    // Check booking status
+    app.get("/api/bookings/check", async (req, res) => {
+      try {
+        const { userId, classId } = req.query;
+
+        if (!userId || !classId) {
+          return res.status(400).json({
+            success: false,
+            message: "userId and classId are required",
+          });
+        }
+
+        const booking = await bookingsCollection.findOne({
+          userId,
+          classId,
+          isBooked: true,
+        });
+
+        return res.status(200).json({
+          success: true,
+          isBooked: !!booking,
+          booking: booking || null,
+        });
+      } catch (error) {
+        console.error("Booking Check Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Internal Server Error",
+        });
+      }
+    });
+
+    // payments
+    app.post("/api/payments", async (req, res) => {
+      try {
+        const paymentData = {
+          ...req.body,
+          paymentAt: new Date(),
+        };
+
+        const existingPayment = await paymentsCollection.findOne({
+          sessionId: paymentData.sessionId,
+        });
+
+        if (existingPayment) {
+          return res.status(409).json({
+            success: false,
+            message: "Payment already completed",
+          });
+        }
+
+        // Save payment
+        const paymentResult = await paymentsCollection.insertOne(paymentData);
+
+        // Update booking
+        const bookingResult = await bookingsCollection.updateOne(
+          {
+            userId: paymentData.userId,
+            classId: paymentData.classId,
+          },
+          {
+            $set: {
+              isBooked: true,
+              paymentStatus: "Paid",
+              paidAt: new Date(),
+              paymentId: paymentResult.insertedId,
+            },
+          },
+        );
+
+        // Booking update successful  booking count ++
+        if (bookingResult.modifiedCount > 0) {
+          await classesCollection.updateOne(
+            {
+              _id: new ObjectId(paymentData.classId),
+            },
+            {
+              $inc: {
+                bookingCount: 1,
+              },
+              $set: {
+                lastBookingAt: new Date(),
+              },
+            },
+          );
+        }
+
+        res.status(201).json({
+          success: true,
+          message: "Payment completed successfully",
+          insertedId: paymentResult.insertedId,
+        });
+      } catch (error) {
+        console.error("Payment Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Internal Server Error",
+        });
+      }
+    });
+
+    // get payments
     app.get("/api/payments", async (req, res) => {
       try {
         const result = await paymentsCollection.find().toArray();
@@ -554,37 +657,6 @@ async function run() {
           message: "Failed to check favorite",
         });
       }
-    });
-
-    //  bookings
-    app.patch("/api/bookings/:classId", async (req, res) => {
-      const { classId } = req.params;
-      const bookings = req.body;
-
-      const classes = await classesCollection.findOne({
-        _id: new ObjectId(classId),
-      });
-
-      if (!classes) {
-        res.status(404).json({ message: "Class not Found!" });
-      }
-
-      await classesCollection.updateOne(
-        { _id: new ObjectId(classId) },
-        {
-          $inc: { bookingCount: 1 },
-          $set: {
-            lastBookingAt: new Date(),
-          },
-        },
-      );
-
-      const result = await bookingsCollection.insertOne({
-        ...bookings,
-        bookingAt: new Date(),
-      });
-
-      res.send(result);
     });
 
     // get bookings
