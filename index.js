@@ -40,6 +40,34 @@ async function run() {
       { unique: true },
     );
 
+    // get booking by admin
+    app.get("/api/bookings/class/:classId", async (req, res) => {
+      try {
+        const { classId } = req.params;
+
+        const bookings = await bookingsCollection
+          .find({
+            classId,
+            isBooked: true, // শুধুমাত্র successful payment/booked
+          })
+          .sort({ bookingAt: -1 })
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          total: bookings.length,
+          data: bookings,
+        });
+      } catch (error) {
+        console.error("Get Class Bookings Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch booked users",
+        });
+      }
+    });
+
     //  bookings
     app.patch("/api/bookings/:classId", async (req, res) => {
       try {
@@ -148,23 +176,20 @@ async function run() {
         const paymentResult = await paymentsCollection.insertOne(paymentData);
 
         // Update booking
-        const bookingResult = await bookingsCollection.updateOne(
-          {
-            userId: paymentData.userId,
-            classId: paymentData.classId,
-          },
-          {
-            $set: {
-              isBooked: true,
-              paymentStatus: "Paid",
-              paidAt: new Date(),
-              paymentId: paymentResult.insertedId,
-            },
-          },
-        );
+        const bookingResult = await bookingsCollection.insertOne({
+          userId: paymentData.userId,
+          classId: paymentData.classId,
+          userName: paymentData.name,
+          email: paymentData.email,
+          isBooked: true,
+          paymentStatus: "Paid",
+          paidAt: new Date(),
+          bookingAt: new Date(),
+          paymentId: paymentResult.insertedId,
+        });
 
         // Booking update successful  booking count ++
-        if (bookingResult.modifiedCount > 0) {
+        if (bookingResult.insertedId) {
           await classesCollection.updateOne(
             {
               _id: new ObjectId(paymentData.classId),
