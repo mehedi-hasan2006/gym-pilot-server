@@ -384,16 +384,36 @@ async function run() {
     // Get Admin Dashboard Stats
     app.get("/api/admin/stats", async (req, res) => {
       try {
-        const [totalUsers, totalClasses, totalBookedClasses] =
-          await Promise.all([
-            usersCollection.countDocuments(),
+        const [
+          totalUsers,
+          totalClasses,
+          totalBookedClasses,
+          pendingApplications,
+          forumPosts,
+          transactions,
+        ] = await Promise.all([
+          // Total Users
+          usersCollection.countDocuments(),
 
-            classesCollection.countDocuments(),
+          // Total Classes
+          classesCollection.countDocuments(),
 
-            bookingsCollection.countDocuments({
-              isBooked: true,
-            }),
-          ]);
+          // Total Successful Bookings
+          bookingsCollection.countDocuments({
+            isBooked: true,
+          }),
+
+          // Pending Trainer Applications
+          applicationsCollection.countDocuments({
+            status: "Pending",
+          }),
+
+          // Total Forum Posts
+          postsCollection.countDocuments(),
+
+          // Total Transactions (Successful Payments)
+          paymentsCollection.countDocuments(),
+        ]);
 
         res.status(200).json({
           success: true,
@@ -401,6 +421,9 @@ async function run() {
             totalUsers,
             totalClasses,
             totalBookedClasses,
+            pendingApplications,
+            forumPosts,
+            transactions,
           },
         });
       } catch (error) {
@@ -524,28 +547,49 @@ async function run() {
       try {
         const { id } = req.params;
 
-        const updateData = {
-          ...req.body,
-          reviewedAt: new Date(),
-        };
+        // Find application first
+        const application = await applicationsCollection.findOne({
+          _id: new ObjectId(id),
+        });
 
-        const result = await applicationsCollection.updateOne(
-          { _id: new ObjectId(id) },
-          {
-            $set: updateData,
-          },
-        );
-
-        if (result.matchedCount === 0) {
+        if (!application) {
           return res.status(404).json({
             success: false,
             message: "Application not found",
           });
         }
 
+        const updateData = {
+          ...req.body,
+          reviewedAt: new Date(),
+        };
+
+        // Update application
+        await applicationsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: updateData,
+          },
+        );
+
+        // Update user role only if Approved
+        if (updateData.status === "Approved") {
+          await usersCollection.updateOne(
+            {
+              _id: new ObjectId(application.userId),
+            },
+            {
+              $set: {
+                role: "trainner",
+                updatedAt: new Date(),
+              },
+            },
+          );
+        }
+
         res.status(200).json({
           success: true,
-          message: "Application updated successfully",
+          message: `Application ${updateData.status.toLowerCase()} successfully`,
         });
       } catch (error) {
         console.error("Update Application Error:", error);
