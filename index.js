@@ -381,6 +381,38 @@ async function run() {
       }
     });
 
+    // Get Admin Dashboard Stats
+    app.get("/api/admin/stats", async (req, res) => {
+      try {
+        const [totalUsers, totalClasses, totalBookedClasses] =
+          await Promise.all([
+            usersCollection.countDocuments(),
+
+            classesCollection.countDocuments(),
+
+            bookingsCollection.countDocuments({
+              isBooked: true,
+            }),
+          ]);
+
+        res.status(200).json({
+          success: true,
+          data: {
+            totalUsers,
+            totalClasses,
+            totalBookedClasses,
+          },
+        });
+      } catch (error) {
+        console.error("Admin Dashboard Stats Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch dashboard statistics",
+        });
+      }
+    });
+
     // create  applications
     app.post("/api/applications", async (req, res) => {
       try {
