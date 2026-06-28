@@ -2,6 +2,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 const app = express();
 const port = 5000;
 
@@ -11,6 +12,30 @@ dotenv.config();
 
 const uri = process.env.MONGODB_URI;
 const DBName = process.env.DB_NAME;
+
+// verify token midleware
+const verifyToken = async (req, res, next) => {
+  const { authorization } = req.headers;
+  const token = authorization?.split(" ")[1];
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Unauthorized. Verification Failed!!.." });
+  }
+
+  try {
+    const JWKS = createRemoteJWKSet(
+      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+    );
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    next();
+  } catch (error) {
+    console.error("Token validation failed:", error);
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+};
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -313,6 +338,49 @@ async function run() {
       }
     });
 
+    // trainner stats
+    app.get("/api/trainers/stats/:trainerId", async (req, res) => {
+      try {
+        const { trainerId } = req.params;
+
+        const stats = await classesCollection
+          .aggregate([
+            {
+              $match: {
+                trainnerId: trainerId,
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalClasses: { $sum: 1 },
+                totalStudents: {
+                  $sum: {
+                    $ifNull: ["$bookingCount", 0],
+                  },
+                },
+              },
+            },
+          ])
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          data: stats[0] || {
+            totalClasses: 0,
+            totalStudents: 0,
+          },
+        });
+      } catch (error) {
+        console.error("Trainer Stats Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch trainer statistics",
+        });
+      }
+    });
+
     // create  applications
     app.post("/api/applications", async (req, res) => {
       try {
@@ -557,6 +625,44 @@ async function run() {
       }
     });
 
+    // Get Featured Classes
+    app.get("/api/classes/featured", async (req, res) => {
+      try {
+        const featuredClasses = await classesCollection
+          .find({
+            status: "Approved",
+          })
+          .sort({
+            bookingCount: -1,
+          })
+          .limit(6)
+          .project({
+            className: 1,
+            image: 1,
+            trainnerName: 1,
+            category: 1,
+            price: 1,
+            duration: 1,
+            bookingCount: 1,
+            difficultyLevel: 1,
+          })
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          total: featuredClasses.length,
+          data: featuredClasses,
+        });
+      } catch (error) {
+        console.error("Featured Classes Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch featured classes",
+        });
+      }
+    });
+
     // fetch api for admin to get all the classes for update status
     app.get("/api/classes", async (req, res) => {
       const classes = await classesCollection.find().toArray();
@@ -797,6 +903,43 @@ async function run() {
         res.status(500).json({
           success: false,
           message: "Internal Server Error",
+        });
+      }
+    });
+
+    // Get Recent Forum Posts
+    app.get("/api/posts/recent", async (req, res) => {
+      try {
+        const recentPosts = await postsCollection
+          .find({
+            status: "active",
+          })
+          .sort({
+            createdAt: -1,
+          })
+          .limit(4)
+          .project({
+            title: 1,
+            description: 1,
+            userName: 1,
+            userImage: 1,
+            createdAt: 1,
+            likes: 1,
+            comments: 1,
+          })
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          total: recentPosts.length,
+          data: recentPosts,
+        });
+      } catch (error) {
+        console.error("Recent Posts Error:", error);
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch recent posts",
         });
       }
     });
