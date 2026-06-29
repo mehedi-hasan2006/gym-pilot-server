@@ -14,28 +14,28 @@ const uri = process.env.MONGODB_URI;
 const DBName = process.env.DB_NAME;
 
 // verify token midleware
-const verifyToken = async (req, res, next) => {
-  const { authorization } = req.headers;
-  const token = authorization?.split(" ")[1];
+// const verifyToken = async (req, res, next) => {
+//   const { authorization } = req.headers;
+//   const token = authorization?.split(" ")[1];
 
-  if (!token) {
-    return res
-      .status(401)
-      .json({ message: "Unauthorized. Verification Failed!!.." });
-  }
+//   if (!token) {
+//     return res
+//       .status(401)
+//       .json({ message: "Unauthorized. Verification Failed!!.." });
+//   }
 
-  try {
-    const JWKS = createRemoteJWKSet(
-      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
-    );
-    const { payload } = await jwtVerify(token, JWKS);
-    req.user = payload;
-    next();
-  } catch (error) {
-    console.error("Token validation failed:", error);
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-};
+//   try {
+//     const JWKS = createRemoteJWKSet(
+//       new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+//     );
+//     const { payload } = await jwtVerify(token, JWKS);
+//     req.user = payload;
+//     next();
+//   } catch (error) {
+//     console.error("Token validation failed:", error);
+//     return res.status(401).json({ message: "Unauthorized" });
+//   }
+// };
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
