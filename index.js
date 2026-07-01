@@ -45,10 +45,14 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
-async function run() {
-  try {
+// async function run() {
+//   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
+
+    client.connect(()=>{
+      console.log("MongoDB connected successfully");
+    }).catch(console.dir);
 
     //db collection
     const db = client.db(DBName);
@@ -60,10 +64,10 @@ async function run() {
     const favoritesCollection = db.collection("favorites");
     const paymentsCollection = db.collection("payments");
 
-    await bookingsCollection.createIndex(
-      { userId: 1, classId: 1 },
-      { unique: true },
-    );
+    // await bookingsCollection.createIndex(
+    //   { userId: 1, classId: 1 },
+    //   { unique: true },
+    // );
 
     // get booking by admin
     app.get("/api/bookings/class/:classId", async (req, res) => {
@@ -1718,12 +1722,12 @@ async function run() {
         });
       }
     });
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
-  }
-}
-run().catch(console.dir);
+//   } finally {
+//     // Ensures that the client will close when you finish/error
+//     // await client.close();
+//   }
+// }
+// run().catch(console.dir);
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
